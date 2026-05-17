@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Calculatrice Z/nZ</title>
+<style>
+:root{--bg:#0e1a44;--panel:#fbfaf4;--ink:#171717;--teal:#0f5b55;--garnet:#8a1d2c;--blue:#1d4f91;--gold:#c79b2b;--muted:#667;--line:#d8d2c4}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f3f1ea;color:var(--ink)}
+header{background:var(--bg);color:white;padding:18px 24px;border-bottom:5px solid var(--gold)}
+header h1{margin:0;font-size:1.55rem;font-weight:650}header p{margin:.35rem 0 0;opacity:.9}
+main{padding:20px;max-width:1180px;margin:0 auto}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:0 2px 10px #0001}
+.panel h2{margin:.1rem 0 1rem;font-size:1.1rem;color:var(--teal)}
+.controls{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:12px}
+.control{display:flex;flex-direction:column;gap:4px}
+label{font-weight:600;font-size:.92rem}
+input,select,button{font:inherit;border:1px solid #bbb;border-radius:8px;padding:7px 9px;background:white}
+button{background:var(--teal);color:white;border-color:var(--teal);cursor:pointer}
+button.secondary{background:white;color:var(--teal)}
+.tablewrap{overflow:auto;max-width:100%}
+table{border-collapse:collapse;margin:8px 0;background:white;font-size:.92rem}
+td,th{border:1px solid #aaa;min-width:28px;height:26px;text-align:center;padding:2px 4px;font-variant-numeric:tabular-nums}
+th{background:#eee}
+.unit{background:#d8f1e1}
+.zero{background:#f4e1e1;color:#888}
+.hl-cycle{background:#fff0b8;font-weight:700}
+.gen{background:#ffd9c2;font-weight:700;color:var(--garnet)}
+.note{font-size:.92rem;color:#444;line-height:1.45}
+.pill{display:inline-block;border-radius:999px;background:#e8e3d7;padding:3px 9px;margin:2px;font-size:.88rem;cursor:pointer;border:1px solid transparent}
+.pill:hover{background:#d4cdb8}
+.pill.active{background:var(--teal);color:white;border-color:var(--teal)}
+.pill.generator{background:#ffd9c2;border-color:var(--garnet)}
+.result{font-size:1.05rem;line-height:1.5}
+.small{font-size:.88rem;color:#555}
+.success{border-left:4px solid var(--teal);padding:8px 10px;background:#f5fffb;margin-top:8px}
+.info{border-left:4px solid var(--blue);padding:8px 10px;background:#f5f9ff;margin-top:8px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.85rem;margin:6px 0}
+.legend-item{display:flex;align-items:center;gap:5px}
+.swatch{width:14px;height:14px;border-radius:3px;display:inline-block;border:1px solid #999}
+.linkbar{margin-top:12px;font-size:.9rem;color:#555}
+</style>
+</head><body>
+<header><h1>Calculatrice ℤ/nℤ</h1><p>Tables, inversibles, ordres et structure du groupe multiplicatif.</p></header>
+<main>
+<section class="panel">
+  <div class="controls">
+    <div class="control"><label for="n">Module n</label>
+      <input id="n" type="range" min="2" max="40" value="12">
+      <span>n = <b id="nval">12</b></span>
+    </div>
+    <button id="minus" class="secondary">−</button>
+    <button id="plus" class="secondary">+</button>
+    <div class="control"><label for="sel">Élément sélectionné a</label>
+      <select id="sel"></select>
+    </div>
+  </div>
+  <div id="summary" class="result"></div>
+  <div id="struct" class="info"></div>
+</section>
+<section class="grid">
+  <div class="panel">
+    <h2>Table d'addition (mod n)</h2>
+    <div class="legend">
+      <span class="legend-item"><span class="swatch" style="background:#f4e1e1"></span>zéros</span>
+      <span class="legend-item"><span class="swatch" style="background:#fff0b8"></span>multiples de a sélectionné</span>
+    </div>
+    <div id="addTable" class="tablewrap"></div>
+  </div>
+  <div class="panel">
+    <h2>Table de multiplication (mod n)</h2>
+    <div class="legend">
+      <span class="legend-item"><span class="swatch" style="background:#d8f1e1"></span>ligne / colonne d'un inversible</span>
+      <span class="legend-item"><span class="swatch" style="background:#fff0b8"></span>cycle ⟨a⟩</span>
+      <span class="legend-item"><span class="swatch" style="background:#ffd9c2"></span>générateur du groupe</span>
+    </div>
+    <div id="mulTable" class="tablewrap"></div>
+  </div>
+  <div class="panel">
+    <h2>Inversibles de (ℤ/nℤ)<sup>×</sup></h2>
+    <p class="small">Cliquez sur un élément pour voir son sous-groupe engendré.</p>
+    <div id="units"></div>
+    <div id="cycle" class="result" style="margin-top:8px"></div>
+  </div>
+  <div class="panel">
+    <h2>Ordres et structure</h2>
+    <div id="orders"></div>
+  </div>
+</section>
+<div class="linkbar">Applet statique HTML/JS pur. Déployable tel quel sur GitHub Pages.</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+function gcd(a,b){while(b){[a,b]=[b,a%b]}return Math.abs(a)}
+function phi(n){let c=0;for(let i=1;i<n;i++)if(gcd(i,n)===1)c++;return c}
+function orderMod(a,n){let x=1;for(let k=1;k<=n;k++){x=(x*a)%n;if(x===1)return k}return null}
+function cycle(a,n){let r=[1],x=1;while(true){x=(x*a)%n;if(x===1){r.push(1);break}r.push(x)}return r}
+
+// Factorisation entiere
+function factor(n){let r=[];for(let p=2;p*p<=n;p++){let e=0;while(n%p===0){n/=p;e++}if(e)r.push([p,e])}if(n>1)r.push([n,1]);return r}
+
+// Structure du groupe (Z/nZ)* via theoreme chinois
+function unitGroupStructure(n){
+  let fac=factor(n);
+  let parts=[];
+  for(let [p,e] of fac){
+    if(p===2){
+      if(e===1){/* trivial Z/1Z */}
+      else if(e===2){parts.push(2)}
+      else{parts.push(2);parts.push(2**(e-2))}
+    }else{
+      parts.push((p-1)*Math.pow(p,e-1));
+    }
+  }
+  return parts.length===0?[1]:parts;
+}
+
+function structureLabel(parts){
+  if(parts.length===1){
+    if(parts[0]===1)return"trivial";
+    return"ℤ/"+parts[0]+"ℤ (cyclique d'ordre "+parts[0]+")";
+  }
+  return parts.map(k=>"ℤ/"+k+"ℤ").join(" × ");
+}
+
+function isCyclic(parts){
+  if(parts.length<=1)return true;
+  // produit cyclique ssi les ordres deux a deux premiers entre eux
+  for(let i=0;i<parts.length;i++)for(let j=i+1;j<parts.length;j++)
+    if(gcd(parts[i],parts[j])!==1)return false;
+  return true;
+}
+
+let selected=1;
+
+function makeAddTable(n,a){
+  let html='<table><tr><th>+</th>';
+  for(let j=0;j<n;j++)html+='<th>'+j+'</th>';
+  html+='</tr>';
+  for(let i=0;i<n;i++){
+    html+='<tr><th>'+i+'</th>';
+    for(let j=0;j<n;j++){
+      let v=(i+j)%n;
+      let cls='';
+      if(v===0)cls='zero';
+      else if(a&&v%gcd(a,n)===0)cls='hl-cycle';
+      html+=`<td class="${cls}">${v}</td>`;
+    }
+    html+='</tr>';
+  }
+  return html+'</table>';
+}
+
+function makeMulTable(n,a,units,gens){
+  let unitsSet=new Set(units);
+  let cycleSet=a&&gcd(a,n)===1?new Set(cycle(a,n)):new Set();
+  let isGen=a&&gens.includes(a);
+  let html='<table><tr><th>×</th>';
+  for(let j=0;j<n;j++){
+    let cls=unitsSet.has(j)?'unit':'';
+    html+=`<th class="${cls}">${j}</th>`;
+  }
+  html+='</tr>';
+  for(let i=0;i<n;i++){
+    let cls=unitsSet.has(i)?'unit':'';
+    html+=`<tr><th class="${cls}">${i}</th>`;
+    for(let j=0;j<n;j++){
+      let v=(i*j)%n;
+      let c=[];
+      if(v===0)c.push('zero');
+      if(i===a||j===a){
+        if(isGen&&unitsSet.has(v))c.push('gen');
+        else if(cycleSet.has(v))c.push('hl-cycle');
+      }
+      html+=`<td class="${c.join(' ')}">${v}</td>`;
+    }
+    html+='</tr>';
+  }
+  return html+'</table>';
+}
+
+function render(){
+  let n=+$('n').value;
+  $('nval').textContent=n;
+  let units=[];for(let a=1;a<n;a++)if(gcd(a,n)===1)units.push(a);
+  let ord=units.map(a=>[a,orderMod(a,n)]);
+  let maxo=Math.max(...ord.map(x=>x[1]));
+  let gens=ord.filter(x=>x[1]===units.length).map(x=>x[0]);
+  let structParts=unitGroupStructure(n);
+  let cyclic=isCyclic(structParts);
+
+  // selection
+  let sel=$('sel');
+  let oldVal=+sel.value||1;
+  sel.innerHTML=units.map(u=>`<option value="${u}">${u}</option>`).join('');
+  if(units.includes(oldVal)){sel.value=oldVal;selected=oldVal}
+  else{selected=units[0]||1;sel.value=selected}
+
+  $('summary').innerHTML=
+    `φ(${n}) = <b>${phi(n)}</b>. `+
+    `Inversibles : <b>${units.length}</b>. `+
+    (cyclic
+      ?`<span style="color:var(--teal)">Groupe cyclique d'ordre ${units.length}.</span>`
+      :`<span style="color:var(--garnet)">Groupe non cyclique.</span>`);
+
+  $('struct').innerHTML=
+    `(ℤ/${n}ℤ)<sup>×</sup> ≃ <b>${structureLabel(structParts)}</b>. `+
+    (gens.length>0
+      ?`Générateurs : ${gens.map(g=>'<span class="pill generator">'+g+'</span>').join(' ')}`
+      :`Aucun générateur (groupe non monogène).`);
+
+  $('addTable').innerHTML=makeAddTable(n,selected);
+  $('mulTable').innerHTML=makeMulTable(n,selected,units,gens);
+
+  $('units').innerHTML=units.map(u=>{
+    let cls='pill';
+    if(gens.includes(u))cls+=' generator';
+    if(u===selected)cls+=' active';
+    return `<span class="${cls}" data-u="${u}">${u}</span>`;
+  }).join('');
+
+  document.querySelectorAll('.pill[data-u]').forEach(el=>{
+    el.onclick=()=>{selected=+el.dataset.u;sel.value=selected;render()};
+  });
+
+  if(units.includes(selected)){
+    let cyc=cycle(selected,n);
+    let o=orderMod(selected,n);
+    let cycStr=cyc.slice(0,-1).join(' → ')+' → 1';
+    $('cycle').innerHTML=
+      `<div class="success">⟨${selected}⟩ = {${[...new Set(cyc.slice(0,-1))].sort((a,b)=>a-b).join(', ')}}, ordre <b>${o}</b>.<br>`+
+      `<span class="small mono">${selected}⁰=1, ${selected}¹=${cyc[1]}, ${selected}²=${cyc[2]||'…'}, … : ${cycStr}</span></div>`;
+  }
+
+  $('orders').innerHTML='<table><tr><th>a</th><th>ordre</th><th>cycle</th></tr>'+
+    ord.map(([a,o])=>{
+      let cyc=cycle(a,n).slice(0,-1);
+      let isGen=gens.includes(a);
+      return `<tr${isGen?' style="background:#fff7e8"':''}><td><b>${a}</b></td><td>${o}</td><td class="small mono">{${[...new Set(cyc)].sort((a,b)=>a-b).join(', ')}}</td></tr>`;
+    }).join('')+'</table>';
+}
+
+$('n').addEventListener('input',()=>{selected=1;render()});
+$('minus').onclick=()=>{$('n').value=Math.max(2,+$('n').value-1);selected=1;render()};
+$('plus').onclick=()=>{$('n').value=Math.min(40,+$('n').value+1);selected=1;render()};
+$('sel').onchange=()=>{selected=+$('sel').value;render()};
+render();
+</script>
+</body></html>
