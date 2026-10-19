@@ -182,7 +182,6 @@ function render(){
   $('nval').textContent=n;
   let units=[];for(let a=1;a<n;a++)if(gcd(a,n)===1)units.push(a);
   let ord=units.map(a=>[a,orderMod(a,n)]);
-  let maxo=Math.max(...ord.map(x=>x[1]));
   let gens=ord.filter(x=>x[1]===units.length).map(x=>x[0]);
   let structParts=unitGroupStructure(n);
   let cyclic=isCyclic(structParts);
